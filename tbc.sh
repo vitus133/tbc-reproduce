@@ -63,6 +63,8 @@ help () {
 	echo "up, down - set TR port up or down"
 	echo "lock - try to lock dpll on NIC reference"
 	echo "hold - disable NIC outputs to DPLL"
+        echo "kill - kill running daemons"
+        echo "showphaseadj - show phase adjustments"
 }
 
 init () {
@@ -108,4 +110,6 @@ hold () {
         sudo bash -c "echo 0 0 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/ptp*/pins/SDP0"
         sudo bash -c "echo 0 0 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/ptp*/pins/SDP2"
 }
-
+showphaseadj () {
+	 sudo podman run --privileged --network=host quay.io/vgrinber/tools:dpll dpll-cli dumpPins |jq -cr 'select(.phaseAdjust != 0) |"\(.id)\t\(.boardLabel)\t\(.phaseAdjust)"'
+}
