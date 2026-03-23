@@ -61,8 +61,8 @@ help () {
 	echo "commands:"
 	echo "init - initial state"
 	echo "up, down - set TR port up or down"
-	echo "lock - try to lock dpll on NIC reference"
-	echo "hold - disable NIC outputs to DPLL"
+	echo "lock - lock the DPLL on the NIC reference"
+	echo "hold - disable NIC outputs to DPLL, enable DPLL to NIC"
 	echo "kill - kill running daemons"
 }
 
