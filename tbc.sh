@@ -1,119 +1,187 @@
 #!/bin/bash
 
-# NIC data
-## Default pins state
-## Id   Board Label	Parent eec	Direction eec	Prio	State			Parent pps	Direction pps	Prio	State
-##--------------------------------------------------------------------------------------------------------------------------------
-# ens4f0 0x507c6fffff1fb218
-## 21	CVL-SDP22	2			input			255		selectable		3		input		5	selectable
-## 22	CVL-SDP20	2			input			255		selectable		3		input		4	selectable
-## 27	GNSS-1PPS	2			input			0		connected		3		input		0	connected
-## 32	CVL-SDP21	2			output			0		disconnected	3		output		0	connected
-## 33	CVL-SDP23	2			output			0		disconnected	3		output		0	connected
-## 34	SMA1		2			input			3		selectable		3		input		3	selectable
-## 35	SMA2		2			input			2		selectable		3		input		2	selectable
-# ens5f0 0x507c6fffff0ac7be
-## 0	CVL-SDP22	0			input			255		selectable		1		input		5	selectable
-## 1	CVL-SDP20	0			input			255		selectable		1		input		4	selectable
-## 6	GNSS-1PPS	0			input			0		selectable		1		input		0	selectable
-## 11	CVL-SDP21	0			output			0		disconnected	1		output		0	connected
-## 12	CVL-SDP23	0			output			0		disconnected	1		output		0	connected
-## 13	SMA1		0			input			3		selectable		1		input		3	selectable
-## 14	SMA2		0			input			2		selectable		1		input		2	selectable
-# ens8f0 0x507c6fffff0ac7e0
-## 46	CVL-SDP22	6			input			255		selectable		7		input		5	selectable
-## 47	CVL-SDP20	6			input			255		selectable		7		input		4	selectable
-## 52	GNSS-1PPS	6			input			0		selectable		7		input		0	selectable
-## 57	CVL-SDP21	6			output			0		disconnected	7		output		0	connected
-## 58	CVL-SDP23	6			output			0		disconnected	7		output		0	connected
-## 59	SMA1		6			input			3		selectable		7		input		3	selectable
-## 60	SMA2		6			input			2		selectable		7		input		2	selectable
-
-
 TIME_RECEIVER_NIC="${TIME_RECEIVER_NIC:-ens4f0}"
+PPS_FOLLOWER_NIC="${PPS_FOLLOWER_NIC:-ens5f0}"
 UPSTREAM_PORT="${UPSTREAM_PORT:-ens4f0}"
 
 # Time receiver NIC pin IDs
-GNSS_ID="${GNSS_ID:-27}"
-SDP23_ID="${SDP23_ID:-33}"
-SDP22_ID="${SDP22_ID:-21}"
-SDP21_ID="${SDP21_ID:-32}"
-SDP20_ID="${SDP20_ID:-22}"
+GNSS_ID=23
+SDP23_ID=29
+SDP21_ID=28
+SDP22_ID=17
+SDP20_ID=18
 
 # Time receiver NIC pin parent IDs
 PPID_EEC=2
 PPID_PPS=3
 
-set_pin_state () {
-	id=$1
-	parent=$2
-	state=$3
+# Functions
+# prints command to disable the input by ID passed as $1
+mk_disable_input_cmd () {
+		id=$1
+		JSON_STR=$(jq -n --arg id "$id" --arg PPID_EEC "$PPID_EEC" --arg PPID_PPS "$PPID_PPS" \
+		  '{"id": $id,"parent-device":[{"parent-id":$PPID_EEC,"prio":255,"state":"disconnected"},{"parent-id":$PPID_PPS,"prio":255,"state":"disconnected"}]}')
 	CMD="sudo podman run --privileged --network=host --rm \
-		quay.io/vgrinber/tools:dpll dpll pin set id $id parent-device $parent state $state"
+		quay.io/vgrinber/tools:dpll python3 cli.py --spec /net-next/Documentation/netlink/specs/dpll.yaml --do pin-set --json '${JSON_STR}'"
+	echo $CMD
+}
+
+
+# prints command to disable the output by ID passed as $1
+mk_disable_output_cmd () {
+		id=$1
+		JSON_STR=$(jq -n --arg id "$id" --arg PPID_EEC "$PPID_EEC" --arg PPID_PPS "$PPID_PPS" \
+		  '{"id": $id,"parent-device":[{"parent-id":$PPID_EEC,"state":"disconnected"},{"parent-id":$PPID_PPS,"state":"disconnected"}]}')
+	CMD="sudo podman run --privileged --network=host --rm \
+		quay.io/vgrinber/tools:dpll python3 cli.py --spec /net-next/Documentation/netlink/specs/dpll.yaml --do pin-set --json '${JSON_STR}'"
+	echo $CMD
+}
+
+# prints command to enable the input by ID passed as $1
+mk_enable_input_cmd () {
+		id=$1
+		JSON_STR=$(jq -n --arg id "$id" --arg PPID_EEC "$PPID_EEC" --arg PPID_PPS "$PPID_PPS" \
+		  '{"id": $id,"parent-device":[{"parent-id":$PPID_EEC,"prio":0,"state":"selectable"},{"parent-id":$PPID_PPS,"prio":0,"state":"selectable"}]}')
+	CMD="sudo podman run --privileged --network=host --rm \
+		quay.io/vgrinber/tools:dpll python3 cli.py --spec /net-next/Documentation/netlink/specs/dpll.yaml --do pin-set --json '${JSON_STR}'"
+	echo $CMD
+}
+
+mk_enable_input_cmd_2 () {
+		id=$1
+		eec_prio=$2
+		pps_prio=$3
+		JSON_STR=$(jq -n --arg id "$id" --arg PPID_EEC "$PPID_EEC" --arg PPID_PPS "$PPID_PPS" --arg eec_prio "$eec_prio" --arg pps_prio "$pps_prio"\
+		  '{"id": $id,"parent-device":[{"parent-id":$PPID_EEC,"prio":$eec_prio,"state":"selectable"},{"parent-id":$PPID_PPS,"prio":$pps_prio,"state":"selectable"}]}')
+	CMD="sudo podman run --privileged --network=host --rm \
+		quay.io/vgrinber/tools:dpll python3 cli.py --spec /net-next/Documentation/netlink/specs/dpll.yaml --do pin-set --json '${JSON_STR}'"
+	echo $CMD
+}
+
+# prints command to enable the output by ID passed as $1
+mk_enable_output_cmd () {
+		id=$1
+		JSON_STR=$(jq -n --arg id "$id"  --arg PPID_EEC "$PPID_EEC" --arg PPID_PPS "$PPID_PPS" \
+		  '{"id": $id,"parent-device":[{"parent-id":$PPID_EEC,"state":"connected"},{"parent-id":$PPID_PPS,"state":"connected"}]}')
+	CMD="sudo podman run --privileged --network=host --rm \
+		quay.io/vgrinber/tools:dpll python3 cli.py --spec /net-next/Documentation/netlink/specs/dpll.yaml --do pin-set --json '${JSON_STR}'"
+	echo $CMD
+}
+# Runs command given as a string in $1
+run_command () {
+	   local CMD=$1
 	eval $CMD
-	rv=$?
-	if [ $rv -ne 0 ]; then
-		echo "Error sending command $CMD"
+		rv=$?
+		if [ $rv -ne 0 ]; then
+		echo "Error"
 	fi
 }
-help () {
 
-	echo "commands:"
-	echo "init - initial state"
-	echo "up, down - set TR port up or down"
-	echo "lock - lock the DPLL on the NIC reference"
-	echo "hold - disable NIC outputs to DPLL, enable DPLL to NIC"
-	echo "kill - kill running daemons"
+
+
+enable_e810_1_pps_output () {
+	 sudo bash -c "echo 2 0 0 1 0 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/ptp*/period"
 }
+
+enable_sma_1_pps () {
+	 sudo bash -c "echo 2 1 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/*/pins/SMA1"
+	 sudo bash -c "echo 1 1 > /sys/class/net/$PPS_FOLLOWER_NIC/device/ptp/*/pins/SMA1"
+	# for measurements:
+	 sudo bash -c "echo 2 2 > /sys/class/net/$PPS_FOLLOWER_NIC/device/ptp/*/pins/SMA2"
+}
+
 
 init () {
-	# Zero SDP inputs
-	sudo bash -c "echo 0 0 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/ptp*/pins/SDP22"
-	sudo bash -c "echo 0 0 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/ptp*/pins/SDP20"
-	# Disable GNSS of the TR NIC
-	set_pin_state $GNSS_ID $PPID_EEC disconnected
-	set_pin_state $GNSS_ID $PPID_PPS disconnected
+	enable_sma_1_pps
+	# Enable 1PPS from E810 in the driver
+	enable_e810_1_pps_output
 
-	# Disable SDP20 / 21 as we don't use them
-	set_pin_state $SDP20_ID $PPID_EEC disconnected
-	set_pin_state $SDP20_ID $PPID_PPS disconnected
-	set_pin_state $SDP21_ID $PPID_EEC disconnected
-	set_pin_state $SDP21_ID $PPID_PPS disconnected
+	# Disable inputs
+	for i in "$GNSS_ID" "$SDP20_ID"; do
+		cmd=$(mk_disable_input_cmd $i)
+		res=$(run_command "$cmd")
+			if [[ "$res" != "None" ]]; then
+			echo "Failed to run command: $cmd"
+			return 1
+			fi
+	done
 
-	# Disable SDP23 / 22 (init)
-	set_pin_state $SDP22_ID $PPID_EEC disconnected
-	set_pin_state $SDP22_ID $PPID_PPS disconnected
-	set_pin_state $SDP23_ID $PPID_EEC disconnected
-	set_pin_state $SDP23_ID $PPID_PPS disconnected
-
-	# Enable SDP22 PHC pulse 
-	sudo bash -c "echo 2 2 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/ptp*/pins/SDP22"
-	sudo bash -c "echo 2 0 0 1 0 >  /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/ptp*/period"
+	# enable SDP22 PPS only
+	CMD=$(mk_enable_input_cmd_2 $SDP22_ID 255 0)
+	echo $CMD
+		res=$(run_command "$CMD")
+		if [[ "$res" != "None" ]]; then
+			echo "Failed to run command: $cmd"
+				return 1
+		fi
+	
+	# Disable outputs
+	for i in "$SDP21_ID"; do
+		cmd=$(mk_disable_output_cmd $i)
+		res=$(run_command "$cmd")
+			if [[ "$res" != "None" ]]; then
+			echo "Failed to run command: $cmd"
+			return 1
+			fi
+	done
 }
 
-up (){
-	sudo ip link set $UPSTREAM_PORT up
+
+lock () {
+	
+	CMD=$(mk_enable_input_cmd_2 $SDP22_ID 255 0)
+	echo $CMD
+		res=$(run_command "$CMD")
+		if [[ "$res" != "None" ]]; then
+			echo "Failed to run command: $cmd"
+				return 1
+		fi
+	cmd=$(mk_disable_output_cmd $SDP21_ID)
+		echo $cmd
+	res=$(run_command "$cmd")
+		if [[ "$res" != "None" ]]; then
+				echo "Failed to run command: $cmd"
+				return 1
+		fi
+	cmd=$(mk_disable_output_cmd $SDP23_ID)
+		echo $cmd
+	res=$(run_command "$cmd")
+		if [[ "$res" != "None" ]]; then
+				echo "Failed to run command: $cmd"
+				return 1
+		fi
 }
 
 down (){
 	sudo ip link set $UPSTREAM_PORT down
 }
 
-lock () {
-	# Disable SDP23, enable SDP22
-	set_pin_state $SDP23_ID $PPID_PPS disconnected
-	set_pin_state $SDP22_ID $PPID_PPS selectable
+up () {
+	sudo ip link set $UPSTREAM_PORT up
 }
-
-kill () {
-	parent=$(ps -o pgid= -p $(ps -ef |grep ptp4l |grep bash | awk '{print $2}'))
-	sudo kill -9 -$parent
-}
-
 hold () {
-	# Disable SDP22, Enable SDP23
-	set_pin_state $SDP22_ID $PPID_PPS disconnected
-	set_pin_state $SDP23_ID $PPID_PPS connected
+	
 
+	cmd=$(mk_disable_input_cmd $SDP22_ID)
+	echo $cmd
+		res=$(run_command "$cmd")
+		if [[ "$res" != "None" ]]; then
+				echo "Failed to run command: $cmd"
+			return 1
+		fi
+
+	cmd=$(mk_enable_output_cmd $SDP23_ID)
+		echo $cmd
+	res=$(run_command "$cmd")
+		if [[ "$res" != "None" ]]; then
+				echo "Failed to run command: $cmd"
+				return 1
+		fi
+	cmd=$(mk_enable_output_cmd $SDP21_ID)
+		echo $cmd
+	res=$(run_command "$cmd")
+		if [[ "$res" != "None" ]]; then
+				echo "Failed to run command: $cmd"
+				return 1
+		fi
 }
-
