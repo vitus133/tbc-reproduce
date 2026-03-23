@@ -80,6 +80,8 @@ run_command () {
 
 
 enable_e810_1_pps_output () {
+         # hack to assign channel 2 to SDP22
+         sudo bash -c "echo 2 2 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/*/pins/SMA2"
 	 sudo bash -c "echo 2 0 0 1 0 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/ptp*/period"
 }
 
