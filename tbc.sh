@@ -128,28 +128,19 @@ init () {
 
 
 lock () {
-	
+	# cmd=$(mk_disable_output_cmd $SDP23_ID)
+	# res=$(run_command "$cmd")
+	# if [[ "$res" != "None" ]]; then
+	# 		echo "Failed to run command: $cmd"
+	# 		return 1
+	# fi
 	CMD=$(mk_enable_input_cmd_2 $SDP22_ID 255 0)
 	echo $CMD
-		res=$(run_command "$CMD")
-		if [[ "$res" != "None" ]]; then
-			echo "Failed to run command: $cmd"
-				return 1
-		fi
-	cmd=$(mk_disable_output_cmd $SDP21_ID)
-		echo $cmd
-	res=$(run_command "$cmd")
-		if [[ "$res" != "None" ]]; then
-				echo "Failed to run command: $cmd"
-				return 1
-		fi
-	cmd=$(mk_disable_output_cmd $SDP23_ID)
-		echo $cmd
-	res=$(run_command "$cmd")
-		if [[ "$res" != "None" ]]; then
-				echo "Failed to run command: $cmd"
-				return 1
-		fi
+	res=$(run_command "$CMD")
+	if [[ "$res" != "None" ]]; then
+		echo "Failed to run command: $cmd"
+			return 1
+	fi
 }
 
 down (){
@@ -159,6 +150,7 @@ down (){
 up () {
 	sudo ip link set $UPSTREAM_PORT up
 }
+
 hold () {
 	
 
@@ -170,18 +162,15 @@ hold () {
 			return 1
 		fi
 
-	cmd=$(mk_enable_output_cmd $SDP23_ID)
-		echo $cmd
-	res=$(run_command "$cmd")
-		if [[ "$res" != "None" ]]; then
-				echo "Failed to run command: $cmd"
-				return 1
-		fi
-	cmd=$(mk_enable_output_cmd $SDP21_ID)
-		echo $cmd
-	res=$(run_command "$cmd")
-		if [[ "$res" != "None" ]]; then
-				echo "Failed to run command: $cmd"
-				return 1
-		fi
+	# cmd=$(mk_enable_output_cmd $SDP23_ID)
+	# 	echo $cmd
+	# res=$(run_command "$cmd")
+	# 	if [[ "$res" != "None" ]]; then
+	# 			echo "Failed to run command: $cmd"
+	# 			return 1
+	# 	fi
+}
+
+kill () {
+	sudo pkill ptp4l; sudo pkill ts2phc; sudo pkill phc2sys
 }
