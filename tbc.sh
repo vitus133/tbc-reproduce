@@ -4,13 +4,14 @@
 # id	label		eec	dir		pr	state			pps	dir		pr	state
 ##--------------------------------------------------------------------------------------------------------------------------------
 # ens4f0 0x507c6fffff1fb218
-# 23	CVL-SDP22	3	input	255	selectable		4	input	0	connected
-# 24	CVL-SDP20	3	input	255	disconnected	4	input	255	disconnected
-# 29	GNSS-1PPS	3	input	255	disconnected	4	input	255	disconnected
-# 36	CVL-SDP21	3	output	0	disconnected	4	output	0	disconnected
-# 37	CVL-SDP23	3	output	0	disconnected	4	output	0	connected
-# 38	SMA1		3	input	1	disconnected	4	input	1	disconnected
-# 39	SMA2		3	input	2	disconnected	4	input	2	disconnected
+# 21	CVL-SDP22	2	input	8	selectable	3	input	8	selectable
+# 22	CVL-SDP20	2	input	255	selectable	3	input	3	selectable
+# 27	GNSS-1PPS	2	input	0	connected	3	input	0	connected
+# 32	CVL-SDP21	2	output	0	disconnected	3	output	0	connected
+# 33	CVL-SDP23	2	output	0	disconnected	3	output	0	connected
+# 34	SMA1	2	input	1	selectable	3	input	1	selectable
+# 35	SMA2	2	input	2	selectable	3	input	2	selectable
+
 
 # ens5f0 0x507c6fffff0ac7be
 # 0		CVL-SDP22	0	input	8	selectable		1	input	8	selectable
@@ -35,15 +36,17 @@ TIME_RECEIVER_NIC="${TIME_RECEIVER_NIC:-ens4f0}"
 UPSTREAM_PORT="${UPSTREAM_PORT:-ens4f0}"
 
 # Time receiver NIC pin IDs
-GNSS_ID=29
-SDP23_ID=37
-SDP22_ID=23
-SDP21_ID=36
-SDP20_ID=24
+GNSS_ID=27
+SDP23_ID=33
+SDP22_ID=21
+SDP21_ID=32
+SDP20_ID=22
+SMA1_ID=34
+SMA2_ID=35
 
 # Time receiver NIC pin parent IDs
-PPID_EEC=3
-PPID_PPS=4
+PPID_EEC=2
+PPID_PPS=3
 
 # Functions
 set_pin_direction () {
@@ -87,16 +90,20 @@ init () {
 	sudo bash -c "echo 0 0 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/ptp*/pins/SDP22"
 	sudo bash -c "echo 0 0 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/ptp*/pins/SDP20"
 
-	# Disable GNSS of other NICs
+	# Disable GNSS of all NICs
+	set_pin_state $GNSS_ID $PPID_EEC disconnected
+	set_pin_state $GNSS_ID $PPID_PPS disconnected
 	set_pin_state 6 0 disconnected
 	set_pin_state 6 1 disconnected
 	set_pin_state 52 6 disconnected
 	set_pin_state 52 7 disconnected
 
 	# Enable SMA1 and SMA2 outputs on the leading NIC
-	# this will also set PPS output
-	set_pin_direction 38 3 output
-	set_pin_direction 39 3 output
+	# this will set both output
+	set_pin_direction $SMA1_ID $PPID_PPS output
+	set_pin_state $SMA1_ID $PPID_PPS connected
+	set_pin_direction $SMA2_ID $PPID_PPS output
+	set_pin_state $SMA2_ID $PPID_PPS connected
 
 	# Disable SDP20 / 21 as we don't use them
 	set_pin_state $SDP20_ID $PPID_EEC disconnected
