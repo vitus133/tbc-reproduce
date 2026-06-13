@@ -2,6 +2,8 @@
 
 ##### Constants
 
+export IMAGE_PULL="quay.io/vgrinber/tools:dpll"
+
 export TIME_RECEIVER_NIC="eno1"
 export UPSTREAM_PORT="eth7"
 
@@ -10,7 +12,7 @@ gnss_1pps_pkg_lab="REF4P"
 ptp_1pps_input_pkg_lab="REF0N"
 ptp_1khz_input_pkg_lab="REF0P"
 
-DPLL_COMMAND="sudo podman run --privileged --network=host quay.io/vgrinber/tools:dpll dpll"
+DPLL_COMMAND="sudo podman run --privileged --network=host $IMAGE_PULL dpll"
 
 ##### Variables
 GNSS_1PPS_ID=$(get_pin_id $module $gnss_1pps_pkg_lab)
@@ -35,7 +37,23 @@ inp() {
 }
 
 
+# Start
+# start() starts PTP daemons with configurations specified in the Procfile
+start () {
+	 sudo podman run -e IMAGE_PULL=$IMAGE_PULL -d --replace --name ptp-stack   --privileged --network=host   -v "$(pwd)":"/app" -w /app  $IMAGE_PULL bash -c "pip install honcho && honcho start"
 
+}
+
+# stop () stops the daemons
+stop () {
+	 sudo podman stop ptp-stack
+}
+
+# logs () prints logs from 5s, ooptionally with "-f" if specified
+logs () {
+	flags=$1
+	sudo podman logs --since 5s $flags  ptp-stack
+} 
 
 ###### Main
 
