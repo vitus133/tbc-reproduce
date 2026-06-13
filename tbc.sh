@@ -1,19 +1,31 @@
 #!/bin/bash
 
-TIME_RECEIVER_NIC="${TIME_RECEIVER_NIC:-eno5}"
-UPSTREAM_PORT="${UPSTREAM_PORT:-eno2}"
+export TIME_RECEIVER_NIC=eno8703"
+export UPSTREAM_PORT="eno8703"
+
+export module="zl3073x"
+export gnss_1pps_pkg_lab="REF4P"
+export ptp_1pps_input_pkg_lab="REF0N"
+export ptp_1khz_input_pkg_lab="REF0P"
+
+export DPLL_COMMAND="sudo podman run --privileged --network=host quay.io/vgrinber/tools:dpll dpll"
+
+
 
 # Time receiver NIC pin IDs
-GNSS_ID="${GNSS_ID:-6}"
+# export GNSS_ID=$($DPLL_COMMAND pin show -j | jq '.pin[] | select(."module-name" == env.module) | select(."package-label" == env.gnss_1pps_pkg_lab) | .id')
 
-# ptpInputPin: GNR-D_SDP0 id
-PTP_INPUT_PIN_ID="${PTP_INPUT_PIN_ID:-0}"
 
+
+# ptpInputPins:
+PTP_INPUT_PIN_ID==$(sudo podman run --privileged --network=host quay.io/vgrinber/tools:dpll dpll pin show -j | jq '.pin[] | select(."module-name" == env.module) | select(."package-label" == env.ptp_1pps_input_pkg_lab) | .id')
+PTP_1KHZ_INPUT_PIN_ID==$(sudo podman run --privileged --network=host quay.io/vgrinber/tools:dpll dpll pin show -j | jq '.pin[] | select(."module-name" == env.module) | select(."package-label" == env.ptp_1khz_input_pkg_lab) | .id')
+
+DPLL_COMMAND="sudo podman run --privileged --network=host quay.io/vgrinber/tools:dpll dpll"
 # Time receiver NIC pin parent IDs
-PPID_EEC=0
-PPID_PPS=1
+PPID_EEC=$($DPLL_COMMAND device show -j | jq '.device[] | select(."module-name" ==  "zl3073x") |select(.type == "eec") | .id')
+PPID_PPS=$($DPLL_COMMAND device show -j | jq '.device[] | select(."module-name" ==  "zl3073x") |select(.type == "pps") | .id')
 
-# Functions
 # prints command to disable the input by ID passed as $1
 mk_disable_input_cmd () {
         id=$1
