@@ -1,94 +1,118 @@
 #!/bin/bash
 
-export TIME_RECEIVER_NIC=eno8703"
-export UPSTREAM_PORT="eno8703"
+##### Constants
 
-export module="zl3073x"
-export gnss_1pps_pkg_lab="REF4P"
-export ptp_1pps_input_pkg_lab="REF0N"
-export ptp_1khz_input_pkg_lab="REF0P"
+export IMAGE_PULL="quay.io/vgrinber/tools:dpll"
 
-export DPLL_COMMAND="sudo podman run --privileged --network=host quay.io/vgrinber/tools:dpll dpll"
+export TIME_RECEIVER_NIC="eno1"
+export UPSTREAM_PORT="eth7"
 
+module="zl3073x"
+gnss_1pps_pkg_lab="REF4P"
+gnss_10mhz_pkg_lab="REF2N"
+ptp_1pps_input_pkg_lab="REF0N"
+ptp_1khz_input_pkg_lab="REF0P"
 
+DPLL_COMMAND="sudo podman run --privileged --network=host $IMAGE_PULL dpll"
+##### pin ID helper
+# get_pin_id gets pin ID by module and package label
+get_pin_id () {
+	module=$1
+	pl=$2
+	str="export module=$module && export pl=$pl && \
+$DPLL_COMMAND pin show -j | jq '.pin[] | select(.\"module-name\" == env.module) | select(.\"package-label\" == env.pl) | .id'"
+	eval $str
+	rc=$?
+	return $rc
 
-# Time receiver NIC pin IDs
-# export GNSS_ID=$($DPLL_COMMAND pin show -j | jq '.pin[] | select(."module-name" == env.module) | select(."package-label" == env.gnss_1pps_pkg_lab) | .id')
-
-
-
-# ptpInputPins:
-PTP_INPUT_PIN_ID==$(sudo podman run --privileged --network=host quay.io/vgrinber/tools:dpll dpll pin show -j | jq '.pin[] | select(."module-name" == env.module) | select(."package-label" == env.ptp_1pps_input_pkg_lab) | .id')
-PTP_1KHZ_INPUT_PIN_ID==$(sudo podman run --privileged --network=host quay.io/vgrinber/tools:dpll dpll pin show -j | jq '.pin[] | select(."module-name" == env.module) | select(."package-label" == env.ptp_1khz_input_pkg_lab) | .id')
-
-DPLL_COMMAND="sudo podman run --privileged --network=host quay.io/vgrinber/tools:dpll dpll"
-# Time receiver NIC pin parent IDs
-PPID_EEC=$($DPLL_COMMAND device show -j | jq '.device[] | select(."module-name" ==  "zl3073x") |select(.type == "eec") | .id')
-PPID_PPS=$($DPLL_COMMAND device show -j | jq '.device[] | select(."module-name" ==  "zl3073x") |select(.type == "pps") | .id')
-
-# prints command to disable the input by ID passed as $1
-mk_disable_input_cmd () {
-        id=$1
-        JSON_STR=$(jq -n --arg id "$id" --arg PPID_EEC "$PPID_EEC" --arg PPID_PPS "$PPID_PPS" \
-          '{"id": $id,"parent-device":[{"parent-id":$PPID_EEC,"state":"disconnected"},{"parent-id":$PPID_PPS,"state":"disconnected"}]}')
-    CMD="sudo podman run --privileged --network=host --rm \
-        quay.io/vgrinber/tools:dpll python3 cli.py --spec /net-next/Documentation/netlink/specs/dpll.yaml --do pin-set --json '${JSON_STR}'"
-    echo $CMD
 }
+##### Variables
+GNSS_1PPS_ID=$(get_pin_id $module $gnss_1pps_pkg_lab)
+GNSS_10MHZ_ID=$(get_pin_id $module $gnss_10mhz_pkg_lab)
+PTP_1PPS_ID=$(get_pin_id $module $ptp_1pps_input_pkg_lab)
+PTP_1KHZ_ID=$(get_pin_id $module $ptp_1khz_input_pkg_lab)
+PDID_EEC=$($DPLL_COMMAND device show -j | jq '.device[] | select(."module-name" ==  "zl3073x") |select(.type == "eec") | .id')
+PDID_PPS=$($DPLL_COMMAND device show -j | jq '.device[] | select(."module-name" ==  "zl3073x") |select(.type == "pps") | .id')
 
 
-# prints command to enable the input by ID passed as $1 and eec / pps priorities passed as $2 and $3
-mk_enable_input_cmd () {
-        id=$1
-        eec_prio=$2
-        pps_prio=$3
-        JSON_STR=$(jq -n --arg id "$id" --arg PPID_EEC "$PPID_EEC" --arg PPID_PPS "$PPID_PPS" --arg eec_prio "$eec_prio" --arg pps_prio "$pps_prio"\
-          '{"id": $id,"parent-device":[{"parent-id":$PPID_EEC,"prio":$eec_prio,"state":"selectable"},{"parent-id":$PPID_PPS,"prio":$pps_prio,"state":"selectable"}]}')
-    CMD="sudo podman run --privileged --network=host --rm \
-        quay.io/vgrinber/tools:dpll python3 cli.py --spec /net-next/Documentation/netlink/specs/dpll.yaml --do pin-set --json '${JSON_STR}'"
-    echo $CMD
-}
 
-# prints command to enable the pps input by ID passed as $1 without changing priority
-mk_enable_pps_input_cmd () {
-        id=$1
-        JSON_STR=$(jq -n --arg id "$id" --arg PPID_EEC "$PPID_EEC" --arg PPID_PPS "$PPID_PPS"\
-          '{"id": $id,"parent-device":[{"parent-id":$PPID_EEC,"state":"disconnected"},{"parent-id":$PPID_PPS,"state":"selectable"}]}')
-    CMD="sudo podman run --privileged --network=host --rm \
-        quay.io/vgrinber/tools:dpll python3 cli.py --spec /net-next/Documentation/netlink/specs/dpll.yaml --do pin-set --json '${JSON_STR}'"
-    echo $CMD
-}
+##### Functions
 
-# Runs command given as a string in $1
-run_command () {
-       local CMD=$1
-	eval $CMD
-        rv=$?
-        if [ $rv -ne 0 ]; then
-        echo "Error"
-    fi
-}
 help () {
 
-	echo "commands:"
-	echo "init - initial state"
-	echo "up, down - set TR port up or down"
-	echo "lock - try to lock dpll on NIC reference"
-	echo "hold - disable NIC outputs to DPLL"
-        echo "kill - kill running daemons"
-        echo "showphaseadj - show phase adjustments"
-	echo "adjust - set phase adjustments from file"
+        echo "	commands:"
+	echo "	inp - shows input pins status"
+	echo "	start - starts PTP daemons with configurations specified in the Procfile"
+	echo "	stop - stops the daemons"
+        echo "	init - initial state"
+	echo "	logs - show daemon logs from the last 5 seconds. Add '-f' to continue flushing"
+        echo "	up, down - set TR port up or down"
+        echo "	lock - try to lock dpll on NIC reference"
+        echo "	hold - disable NIC outputs to DPLL"
+        echo "	kill - same as stop"
+        echo "	showadj - show phase adjustments"
+        echo "	adjust - set phase adjustments from file"
+}
+
+
+
+
+# inp shows input pins status
+inp() {
+	 $DPLL_COMMAND pin show -j |jq -r '.pin[] |select(."module-name" == "zl3073x") | select(."parent-device"[0].direction == "input") | "\(.id)\t\(."package-label")\t\(."parent-device"[0].prio)\t\(."parent-device"[0].state)\t\(."parent-device"[0].operstate)\t\(."parent-device"[1].prio)\t\(."parent-device"[1].state)\t\(."parent-device"[1].operstate)\t\(."board-label")"'
+}
+
+
+# Start
+# start() starts PTP daemons with configurations specified in the Procfile
+start () {
+	 sudo podman run -e IMAGE_PULL=$IMAGE_PULL -d --replace --name ptp-stack   --privileged --network=host   -v "$(pwd)":"/app" -w /app  $IMAGE_PULL bash -c "pip install honcho && honcho start"
+
+}
+
+# stop () stops the daemons
+stop () {
+	 sudo podman stop ptp-stack
+}
+
+# kill () - same as stop
+kill () {
+	stop
+}
+
+# logs () prints logs from 5s, ooptionally with "-f" if specified
+logs () {
+	flags=$1
+	sudo podman logs --since 5s $flags  ptp-stack
+} 
+
+# disable_pd disables source specified by the Parent device ID for the input specified by ID
+# usage: disable_pd {ID} {PDID}
+disable_pd() {
+	id=$1
+	pdid=$2
+	$DPLL_COMMAND pin set id $id parent-device $pdid state disconnected 
+}
+
+# enable_pd enables source specified by the Parent device ID for the input specified by ID
+# usage: enable_pd {ID} {PDID}
+enable_pd() {
+	id=$1
+	pdid=$2
+	$DPLL_COMMAND pin set id $id parent-device $pdid state selectable
 }
 
 init () {
 	sudo bash -c "echo 0 0 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/ptp*/pins/SDP0"
 	sudo bash -c "echo 0 0 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/ptp*/pins/SDP2"
-	cmd=$(mk_disable_input_cmd $GNSS_ID)
-	res=$(run_command "$cmd")
-	if [[ "$res" != "None" ]]; then
-		echo "Failed to run command: $cmd"
-		return 1
-	fi
+        disable_pd $GNSS_1PPS_ID $PDID_EEC
+        disable_pd $GNSS_1PPS_ID $PDID_PPS
+        disable_pd $GNSS_10MHZ_ID $PDID_EEC
+        disable_pd $GNSS_10MHZ_ID $PDID_PPS
+        disable_pd $PTP_1PPS_ID $PDID_EEC
+        disable_pd $PTP_1PPS_ID $PDID_PPS
+        disable_pd $PTP_1KHZ_ID $PDID_EEC
+        disable_pd $PTP_1KHZ_ID $PDID_PPS
 
 }
 
@@ -101,17 +125,12 @@ down (){
 }
 
 lock () {
+        enable_pd $PTP_1PPS_ID $PDID_PPS
+        enable_pd $PTP_1KHZ_ID $PDID_PPS
 	sudo bash -c "echo 2 2 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/ptp*/pins/SDP2"
 	sudo bash -c "echo 2 1 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/ptp*/pins/SDP0"
 	sudo bash -c "echo 1 0 0 1 0 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/ptp*/period"
 	sudo bash -c "echo 2 0 0 0 1000000 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/ptp*/period"
-	cmd=$(mk_enable_pps_input_cmd $PTP_INPUT_PIN_ID)
-        res=$(run_command "$cmd")
-        if [[ "$res" != "None" ]]; then
-                echo "Failed to run command: $cmd"
-                return 1
-        fi
-
 }
 
 kill () {
@@ -124,26 +143,40 @@ hold () {
         sudo bash -c "echo 0 0 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/ptp*/pins/SDP2"
 }
 
-showphaseadj () {
-	 sudo podman run --privileged --network=host quay.io/vgrinber/tools:dpll dpll-cli dumpPins |jq -cr 'select(.phaseAdjust != 0) |"\(.id)\t\(.boardLabel)\t\(.phaseAdjust)"'
+# TODO: adjust to DPLL tool and package labels
+showadj () {
+         sudo podman run --privileged --network=host quay.io/vgrinber/tools:dpll dpll-cli dumpPins |jq -cr 'select(.phaseAdjust != 0) |"\(.id)\t\(.boardLabel)\t\(.phaseAdjust)"'
 }
+
 adjust () {
-	FILE="delays.txt"
+        FILE="delays.txt"
 
-	# Check if file exists before starting
-	if [[ ! -f "$FILE" ]]; then
-    		echo "Error: $FILE not found."
-    		exit 1
-	fi
+        # Check if file exists before starting
+        if [[ ! -f "$FILE" ]]; then
+                echo "Error: $FILE not found."
+                exit 1
+        fi
 
-	# Use IFS to handle tabs/spaces and -r to prevent backslash escapes
-	while read -r index name delay; do
-    
-    		echo "Setting $name with a delay of $delay ps..."
-   		sudo podman run --privileged --network=host quay.io/vgrinber/tools:dpll dpll-cli setPin -i $index  -j $delay 
-    
-    		echo "--------------------------"
+        # Use IFS to handle tabs/spaces and -r to prevent backslash escapes
+        while read -r index name delay; do
 
-	done < "$FILE"
+                echo "Setting $name with a delay of $delay ps..."
+                sudo podman run --privileged --network=host quay.io/vgrinber/tools:dpll dpll-cli setPin -i $index  -j $delay
+
+                echo "--------------------------"
+
+        done < "$FILE"
+}
+#end TODO
+
+
+###### Main
+main () {
+	echo "GNSS input pin ID is $GNSS_1PPS_ID"
+	echo "PTP 1PPS input pin ID is $PTP_1PPS_ID"
+	echo "PTP 1KHz input pin ID is $PTP_1KHZ_ID"
+	echo "EEC device id $PPID_EEC"
+	inp
 }
 
+main
