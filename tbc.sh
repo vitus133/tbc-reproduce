@@ -52,6 +52,7 @@ help () {
         echo "	kill - same as stop"
         echo "	showadj - show phase adjustments"
         echo "	adjust - set phase adjustments from file"
+	echo "	dev - show the table of devices, types and lock statuses"
 }
 
 
@@ -169,6 +170,10 @@ adjust () {
 }
 #end TODO
 
+# dev show the table of devices, types and lock statuses
+dev () {
+	 $DPLL_COMMAND device show -j | jq -r 'def tohex: tonumber|floor|if .==0 then "0" else [.,""]|until(.[0]==0; [(.[0]/16|floor), ("0123456789abcdef"[.[0]%16:.[0]%16+1]+.[1])])|.[1] end; .device[] | "0x\(."clock-id"| tohex ) | \(."clock-id") | \(."module-name") | \(.type) | \(."lock-status") | \(.id)"' |column -s '|' -t
+}
 
 ###### Main
 main () {
