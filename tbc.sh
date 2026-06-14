@@ -59,7 +59,7 @@ help () {
 
 # inp shows input pins status
 inp() {
-	 $DPLL_COMMAND pin show -j |jq -r '.pin[] |select(."module-name" == "zl3073x") | select(."parent-device"[0].direction == "input") | "\(.id)\t\(."package-label")\t\(."parent-device"[0].prio)\t\(."parent-device"[0].state)\t\(."parent-device"[0].operstate)\t\(."parent-device"[1].prio)\t\(."parent-device"[1].state)\t\(."parent-device"[1].operstate)\t\(."board-label")"'
+	 $DPLL_COMMAND pin show -j |jq -r '.pin[] |select(."module-name" == "zl3073x") | select(."parent-device"[0].direction == "input") | "\(.id) | \(."package-label") | \(."parent-device"[0].prio) | \(."parent-device"[0].state) | \(."parent-device"[0].operstate) | \(."parent-device"[1].prio) | \(."parent-device"[1].state) | \(."parent-device"[1].operstate) | \(."board-label")"'| column -s '|' -t
 }
 
 
@@ -145,7 +145,7 @@ hold () {
 
 # TODO: adjust to DPLL tool and package labels
 showadj () {
-         sudo podman run --privileged --network=host quay.io/vgrinber/tools:dpll dpll-cli dumpPins |jq -cr 'select(.phaseAdjust != 0) |"\(.id)\t\(.boardLabel)\t\(.phaseAdjust)"'
+         sudo podman run --privileged --network=host $IMAGE_PULL dpll-cli dumpPins |jq -cr 'select(.phaseAdjust != 0) |"\(.id) | \(.boardLabel) | \(.phaseAdjust)"'| column -s '|' -t
 }
 
 adjust () {
