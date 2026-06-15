@@ -177,11 +177,11 @@ dev () {
 
 ###### Main
 main () {
-	echo "GNSS input pin ID is $GNSS_1PPS_ID"
-	echo "PTP 1PPS input pin ID is $PTP_1PPS_ID"
-	echo "PTP 1KHz input pin ID is $PTP_1KHZ_ID"
-	echo "EEC device id $PPID_EEC"
+	echo "EEC device id $PDID_EEC"
+	echo "PPS device id $PDID_PPS"
 	inp
+	echo "--------------"
+	showadj
 }
 
 main
