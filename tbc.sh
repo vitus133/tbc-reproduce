@@ -4,8 +4,8 @@
 
 export IMAGE_PULL="quay.io/vgrinber/tools:dpll"
 
-export TIME_RECEIVER_NIC="eno1"
-export UPSTREAM_PORT="eth7"
+export TIME_RECEIVER_NIC="eno8703"
+export UPSTREAM_PORT="eno8303"
 
 module="zl3073x"
 gnss_1pps_pkg_lab="REF4P"
@@ -67,7 +67,7 @@ inp() {
 # Start
 # start() starts PTP daemons with configurations specified in the Procfile
 start () {
-	 sudo podman run -e IMAGE_PULL=$IMAGE_PULL -d --replace --name ptp-stack   --privileged --network=host   -v "$(pwd)":"/app" -w /app  $IMAGE_PULL bash -c "pip install honcho && honcho start"
+	 sudo podman run -e IMAGE_PULL=$IMAGE_PULL -d --replace --name ptp-stack   --privileged --network=host   -v "$(pwd)":"/app" -w /app  $IMAGE_PULL bash -c "honcho start"
 
 }
 
