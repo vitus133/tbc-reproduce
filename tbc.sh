@@ -84,7 +84,7 @@ kill () {
 # logs () prints logs from 5s, ooptionally with "-f" if specified
 logs () {
 	flags=$1
-	sudo podman logs --since 5s $flags  ptp-stack
+	sudo podman logs $flags  ptp-stack
 } 
 
 # disable_pd disables source specified by the Parent device ID for the input specified by ID
