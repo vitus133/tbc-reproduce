@@ -144,31 +144,34 @@ hold () {
         sudo bash -c "echo 0 0 > /sys/class/net/$TIME_RECEIVER_NIC/device/ptp/ptp*/pins/SDP2"
 }
 
-# TODO: adjust to DPLL tool and package labels
 showadj () {
-         sudo podman run --privileged --network=host $IMAGE_PULL dpll-cli dumpPins |jq -cr 'select(.phaseAdjust != 0) |"\(.id) | \(.boardLabel) | \(.phaseAdjust)"'| column -s '|' -t
+        $DPLL_COMMAND pin show -j | jq -r '.pin[] | select(."module-name" == "zl3073x") | select(."phase-adjust" != 0) | "\(.id) | \(."package-label") | \(."board-label") | \(."phase-adjust")"' | column -s '|' -t
 }
 
 adjust () {
         FILE="delays.txt"
 
-        # Check if file exists before starting
         if [[ ! -f "$FILE" ]]; then
                 echo "Error: $FILE not found."
                 exit 1
         fi
 
-        # Use IFS to handle tabs/spaces and -r to prevent backslash escapes
-        while read -r index name delay; do
+        while read -r pkg_label delay; do
+                [[ -z "$pkg_label" || "$pkg_label" == \#* ]] && continue
 
-                echo "Setting $name with a delay of $delay ps..."
-                sudo podman run --privileged --network=host quay.io/vgrinber/tools:dpll dpll-cli setPin -i $index  -j $delay
+                id=$(get_pin_id $module "$pkg_label")
+                if [[ -z "$id" ]]; then
+                        echo "Error: could not find pin ID for package-label $pkg_label"
+                        continue
+                fi
+
+                echo "Setting $pkg_label (id $id) with a delay of $delay ps..."
+                $DPLL_COMMAND pin set id $id phase-adjust -- $delay             
 
                 echo "--------------------------"
 
         done < "$FILE"
 }
-#end TODO
 
 # dev show the table of devices, types and lock statuses
 dev () {
@@ -185,3 +188,4 @@ main () {
 }
 
 main
+

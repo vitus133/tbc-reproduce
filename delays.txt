@@ -1,12 +1,9 @@
-6     ETH01_SDP_TIMESYNC_2         -8600
-7     ETH01_SDP_TIMESYNC_0         -8600
-22    null                         0
-23    1PPS_OUT_SW_N                0
-24    EXT_10M_OUT_M2_SW            -25000
-25    null                         0
-26    1EPPS_OUT_SW                 -25000
-27    EPPS_10M_ADD_IN_CARD_SYNC    -25000
-28    null                         0
-29    null                         0
-30    ETH01_SDP_TIMESYNC_3         -5000
-31    ETH01_SDP_TIMESYNC_1         -5000
+REF0P     -8600
+REF0N     -8600
+OUT0N     0
+OUT1P     -25000
+OUT2P     -25000
+OUT2N     -25000
+OUT8P     -5000
+OUT8N     -5000
+
